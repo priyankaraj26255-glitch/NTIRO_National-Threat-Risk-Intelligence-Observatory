@@ -6,14 +6,21 @@ client = TestClient(app)
 
 
 def test_root_endpoint():
+    expected_response ={
+    "message": "Welcome to NTIRO API",
+    "docs": "/docs",
+    "health": "/health",
+    "database_health": "/health/database",
+}
     response = client.get("/")
 
     assert response.status_code == 200
     assert response.json() == {
-        "message": "Welcome to NTIRO API",
-        "docs": "/docs",
-        "health": "/health",
-    }
+    "message": "Welcome to NTIRO API",
+    "docs": "/docs",
+    "health": "/health",
+    "database_health": "/health/database",
+}
 
 
 def test_health_endpoint():
