@@ -4,6 +4,7 @@ from app.models.incident import Incident
 from app.models.source_report import SourceReport
 from app.models.role import Role
 from app.models.user import User
+from app.models.email_verification import EmailVerificationToken
 
 __all__ = [
     "IncidentCategory",
@@ -13,4 +14,5 @@ __all__ = [
     "SourceReport",
     "Role",
     "User",
+    "EmailVerificationToken",
 ]

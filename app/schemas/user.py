@@ -34,3 +34,11 @@ class UserRegisterResponse(BaseModel):
     approval_status: str
     account_status: str
     created_at: datetime
+class EmailVerificationRequest(BaseModel):
+    token: str = Field(
+        min_length=20,
+        max_length=200,
+    )
+class EmailVerificationResponse(BaseModel):
+    message: str
+    email_verified: bool

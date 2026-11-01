@@ -2,9 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database_dependency import get_db
-from app.schemas.user import UserRegister, UserRegisterResponse
-from app.services.user_service import register_user
 
+from app.schemas.user import (
+    UserRegister,
+    UserRegisterResponse,
+    EmailVerificationRequest,
+    EmailVerificationResponse,
+)
+
+from app.services.user_service import register_user
+from app.services.email_verification_service import verify_email_token
 
 router = APIRouter(
     prefix="/auth",
@@ -45,3 +52,27 @@ def register(
         ) from exc
 
     return new_user
+@router.post(
+    "/verify-email",
+    response_model=EmailVerificationResponse,
+)
+def verify_email(
+    verification_data: EmailVerificationRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        user = verify_email_token(
+            db=db,
+            raw_token=verification_data.token,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "message": "Email verified successfully.",
+        "email_verified": user.email_verified,
+    }
