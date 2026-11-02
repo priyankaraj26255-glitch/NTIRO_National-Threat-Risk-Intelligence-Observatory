@@ -11,6 +11,8 @@ from app.models import EmailVerificationToken, User
 
 
 def generate_verification_token() -> tuple[str, str]:
+    """Generate a secure raw token and its SHA-256 hash."""
+
     raw_token = secrets.token_urlsafe(32)
 
     token_hash = hashlib.sha256(
@@ -21,31 +23,56 @@ def generate_verification_token() -> tuple[str, str]:
 
 
 def get_token_expiry() -> datetime:
+    """Set verification token expiry to 30 minutes."""
+
     return datetime.now(timezone.utc) + timedelta(minutes=30)
+
+
+def add_verification_token(
+    db: Session,
+    user_id: int,
+) -> str:
+    """
+    Add a verification token to the current transaction.
+
+    This function does not commit.
+    """
+
+    raw_token, token_hash = generate_verification_token()
+
+    expires_at = get_token_expiry()
+
+    db.execute(
+        delete(EmailVerificationToken).where(
+            EmailVerificationToken.user_id == user_id
+        )
+    )
+
+    verification_token = EmailVerificationToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+
+    db.add(verification_token)
+
+    return raw_token
 
 
 def create_verification_token(
     db: Session,
     user_id: int,
 ) -> str:
-    raw_token, token_hash = generate_verification_token()
-
-    expires_at = get_token_expiry()
+    """
+    Create and commit a verification token independently.
+    """
 
     try:
-        db.execute(
-            delete(EmailVerificationToken).where(
-                EmailVerificationToken.user_id == user_id
-            )
-        )
-
-        verification_token = EmailVerificationToken(
+        raw_token = add_verification_token(
+            db=db,
             user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at,
         )
 
-        db.add(verification_token)
         db.commit()
 
     except Exception:
@@ -59,13 +86,19 @@ def verify_email_token(
     db: Session,
     raw_token: str,
 ) -> User:
+    """
+    Validate a verification token and verify the user's email.
+    """
+
     token_hash = hashlib.sha256(
         raw_token.encode("utf-8")
     ).hexdigest()
 
     statement = (
         select(EmailVerificationToken)
-        .where(EmailVerificationToken.token_hash == token_hash)
+        .where(
+            EmailVerificationToken.token_hash == token_hash
+        )
         .with_for_update()
     )
 
@@ -83,15 +116,22 @@ def verify_email_token(
         now = datetime.now(timezone.utc)
 
         if verification_token.expires_at <= now:
-            raise ValueError("Verification token has expired.")
+            raise ValueError(
+                "Verification token has expired."
+            )
 
-        user = db.get(User, verification_token.user_id)
+        user = db.get(
+            User,
+            verification_token.user_id,
+        )
 
         if user is None:
             raise ValueError("User not found.")
 
         if user.email_verified:
-            raise ValueError("Email is already verified.")
+            raise ValueError(
+                "Email is already verified."
+            )
 
         user.email_verified = True
         verification_token.used_at = now

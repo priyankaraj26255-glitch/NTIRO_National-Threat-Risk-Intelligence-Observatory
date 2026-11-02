@@ -1,10 +1,9 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.models import Role
+from app.core.security import hash_password, verify_password
+from app.models import User, Role
 from app.core.security import hash_password
-
-from app.models import User
-
+from app.services.email_verification_service import add_verification_token
 
 def get_user_by_email(
     db: Session,
@@ -35,7 +34,7 @@ def register_user(
     email: str,
     password: str,
     role_id: int,
-) -> User:
+) -> tuple[User, str]:
 
     existing_user = get_user_by_email(db, email)
 
@@ -65,6 +64,17 @@ def register_user(
 
     try:
         db.add(new_user)
+
+        # Obtain the database-generated user ID.
+        db.flush()
+
+        # Add verification token to the same transaction.
+        raw_token = add_verification_token(
+            db=db,
+            user_id=new_user.id,
+        )
+
+        # Commit user and token together.
         db.commit()
         db.refresh(new_user)
 
@@ -72,4 +82,36 @@ def register_user(
         db.rollback()
         raise
 
-    return new_user
+    return new_user, raw_token
+
+def authenticate_user(
+    db: Session,
+    email: str,
+    password: str,
+) -> User:
+    """
+    Authenticate a user using email and password.
+
+    Returns the authenticated user if account checks pass.
+    """
+
+    user = get_user_by_email(db, email)
+
+    # Use a generic message to avoid revealing whether an email exists.
+    if user is None:
+        raise ValueError("Invalid email or password.")
+
+    if not verify_password(password, user.password_hash):
+        raise ValueError("Invalid email or password.")
+
+    # Email ownership must be verified before login.
+    if not user.email_verified:
+        raise ValueError("Please verify your email before logging in.")
+
+    # Suspended and disabled accounts cannot log in.
+    if user.account_status != "active":
+        raise ValueError("Your account is not active.")
+
+    # Pending and rejected professional accounts can authenticate,
+    # but authorization will restrict them to their status page.
+    return user
