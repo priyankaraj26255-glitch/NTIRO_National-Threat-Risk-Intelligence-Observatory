@@ -1,6 +1,6 @@
 
 from datetime import datetime
-
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -87,3 +87,45 @@ class UserLoginResponse(BaseModel):
     role_id: int
     email_verified: bool
     approval_status: str
+
+# -----------------------------------------
+# ADMIN USER MANAGEMENT SCHEMAS
+# -----------------------------------------
+
+class AdminUserResponse(BaseModel):
+    """Public account information returned to administrators."""
+
+    id: int
+    full_name: str
+    email: EmailStr
+    role_id: int
+    role: str
+    email_verified: bool
+    approval_status: str
+    account_status: Literal["active", "suspended", "disabled"]
+    created_at: datetime
+
+
+class AdminUserDetailResponse(AdminUserResponse):
+    """Detailed account information for an administrator."""
+
+    approved_by: int | None
+    approved_at: datetime | None
+
+
+class AdminUserListResponse(BaseModel):
+    """Paginated list of registered users."""
+
+    offset: int
+    limit: int
+    returned: int
+    users: list[AdminUserResponse]
+
+
+class AccountStatusResponse(BaseModel):
+    """Response after an account status operation."""
+
+    message: str
+    user_id: int
+    account_status: Literal["active", "suspended", "disabled"]
+
